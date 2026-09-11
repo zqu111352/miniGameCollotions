@@ -1,0 +1,28 @@
+#pragma once
+
+enum PAGE_STATE{
+    PAGE_STATE_NONE = 0,
+    PAGE_STATE_CREATE,
+    PAGE_STATE_DESTROY,
+    PAGE_STATE_SHOW,
+    PAGE_STATE_HIDE
+};
+
+struct PageChange
+{
+    PAGE_STATE state;
+    int pageId;
+};
+
+enum PAGE_ID_ENUM{
+    PAGE_ID_MENU,
+    PAGE_ID_SNAKE,
+    PAGE_ID_PAC_MAN,
+    PAGE_ID_BOMBERMAN,
+    PAGE_ID_HUNDERD_FLOORS,
+    PAGE_ID_TETRIS,
+    PAGE_ID_CANDY_CRUSH,
+    PAGE_ID_SUDOKU,
+    PAGE_ID_2048,
+    PAGE_ID_MAX
+};

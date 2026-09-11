@@ -3,9 +3,23 @@
 #include <SFML/Graphics.hpp>
 #include <TGUI/Backend/SFML-Graphics.hpp>
 #include "MyMenu.hpp"
+#include <stack>
+#include "PageMessage.h"
+#include "MessageBus.h"
+#include "SnakeGmae.hpp"
 
 unsigned int width = 1024;
 unsigned int height = 768;
+std::vector<std::shared_ptr<PageBase>> pageStack;
+tgui::Gui* g_pGui = nullptr;
+
+void onPageChange(const PageChange& msg);
+
+std::shared_ptr<PageBase> getTopPage(){
+    if(pageStack.empty())
+        return nullptr;
+    return *pageStack.rbegin();
+}
 
 int main(void){
 
@@ -19,6 +33,7 @@ int main(void){
     }
     // 2. 创建 TGUI Gui 对象，并绑定到 SFML 窗口
     tgui::Gui gui(window);
+    g_pGui = &gui;
 
     // 3. 加载主题 (可选，TGUI 有默认主题，但加载自定义主题更美观)
     // TGUI 自带一些主题文件，通常在 share/TGUI/themes/ 目录下
@@ -31,8 +46,16 @@ int main(void){
     tgui::Font::setGlobalFont("font/SourceHanSerifCN-Medium.otf");
 
     
-    MyMenu myMenu;
-    myMenu.Init(gui);
+    MessageBus::getInstance().subscribe<PageChange>([](const PageChange& msg) {
+        onPageChange(msg);
+    });
+    
+    //初始化主界面
+    if(window.isOpen()){
+        auto myMenu = std::make_shared<MyMenu>();
+        gui.add(myMenu->Init(window.getSize(), PAGE_ID_MENU));
+        pageStack.push_back(std::move(myMenu));
+    }
     // 6. 主循环
     while (window.isOpen())
     {
@@ -42,8 +65,13 @@ int main(void){
             if (event->is<sf::Event::Closed>())
                 window.close();
         }
+        if(pageStack.empty())
+            break;
+        auto topPage = getTopPage();
+        topPage->onLogicLoop();
+        topPage->onShow();
 
-        window.clear();
+        window.clear(sf::Color::Cyan);
 
         gui.draw();
 
@@ -51,4 +79,103 @@ int main(void){
     }
 
     return -1;
+}
+
+void Exit(){
+    pageStack.clear();//销毁所有界面
+}
+std::shared_ptr<PageBase> findPageInStack(PAGE_ID_ENUM pageId){
+    for(auto &item:pageStack){
+        if(pageId == item->getPageId())
+            return item;
+    }
+    return nullptr;
+}
+void removePageInStack(PAGE_ID_ENUM pageId){
+    for(auto it = pageStack.begin(); it != pageStack.end(); it++){
+        if(pageId == (*it)->getPageId()){
+            pageStack.erase(it);
+            g_pGui->remove((*it)->getCurrentGroup());
+            return;
+        }
+    }
+}
+void onPageChange(const PageChange& msg){
+    std::cout << "[pageId] " << msg.pageId << " state: " << msg.state << std::endl;
+    switch(msg.state){
+        case PAGE_STATE_NONE:{
+        }
+        break;
+        case PAGE_STATE_CREATE:{
+            if(!g_pGui)
+                break;
+            auto window = g_pGui->getWindow();
+            if(!window)
+                break;
+            if(!window->isOpen())
+                break;
+            auto page = findPageInStack((PAGE_ID_ENUM)(msg.pageId));
+            auto topPage = getTopPage();
+            if(topPage){
+                if(topPage->getPageId() == msg.pageId)
+                    break;
+                topPage->onHide();
+            }
+            if(page){
+                if(page){
+                    page->onShow();
+                    removePageInStack((PAGE_ID_ENUM)(msg.pageId));
+                    pageStack.push_back(std::move(page));
+                }
+                break;
+            }
+            switch (msg.pageId)
+            {
+                case PAGE_ID_MENU:{
+                    auto myMenu = std::make_shared<MyMenu>();
+                    g_pGui->add(myMenu->Init(window->getSize(), PAGE_ID_MENU));
+                    pageStack.push_back(std::move(myMenu));
+                    break;
+                }
+                case PAGE_ID_SNAKE:{
+                    auto myMenu = std::make_shared<SnakeGame>();
+                    g_pGui->add(myMenu->Init(window->getSize(), PAGE_ID_SNAKE));
+                    pageStack.push_back(std::move(myMenu));
+                    break;
+                }
+                
+                default:
+                    break;
+            }
+        }
+        break;
+        case PAGE_STATE_SHOW:{
+            auto topPage = getTopPage();
+            if(topPage){
+                if(topPage->getPageId() == msg.pageId)
+                    break;
+                topPage->onHide();
+            }
+            auto page = findPageInStack((PAGE_ID_ENUM)(msg.pageId));
+            if(page){
+                page->onShow();
+                removePageInStack((PAGE_ID_ENUM)(msg.pageId));
+                pageStack.push_back(std::move(page));
+            }
+            
+        }
+        break;
+        case PAGE_STATE_DESTROY:
+        case PAGE_STATE_HIDE:{
+            auto page = findPageInStack((PAGE_ID_ENUM)(msg.pageId));
+            if(page){
+                page->onHide();
+                removePageInStack((PAGE_ID_ENUM)(msg.pageId));
+            }
+            auto topPage = getTopPage();
+            if(topPage)
+                topPage->onShow();
+        }
+        break;
+    }
 }

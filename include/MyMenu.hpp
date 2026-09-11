@@ -3,17 +3,22 @@
 #include <TGUI/TGUI.hpp>
 #include <SFML/Graphics.hpp>
 #include <TGUI/Backend/SFML-Graphics.hpp>
+#include "PageBase.h"
+#include "PageMessage.h"
+#include "MessageBus.h"
 
-class MyMenu {
+class MyMenu:public PageBase {
 public:
     MyMenu(){}
     ~MyMenu(){
+        std::cout << " destruct " << typeid(this).name() << std::endl;
     }
-    void Init(tgui::Gui& gui){
-        m_size = gui.getWindow()->getSize();
+    tgui::Group::Ptr Init(sf::Vector2u size, int pageId){
+        m_pageId = pageId;
+        m_size = size;
         myMenuGroup = tgui::Group::create();
         myMenuGroup->setSize(m_size.x, m_size.y);
-        myMenuGroup->setVisible(true);
+        myMenuGroup->setVisible(m_visible);
 
         auto background = tgui::Picture::create("res/background.jpeg");
         background->setSize(m_size.x, m_size.y);
@@ -25,19 +30,7 @@ public:
         label->setPosition("50% - width / 2", 10);
         myMenuGroup->add(label); // 将控件添加到 Gui
 
-        /*auto grid = tgui::Grid::create();
-        grid->setPosition(50, 50);
-        grid->setSize((m_size.x - 100) / 2, 600);
-        // 贪吃蛇
-        auto snakeButton = tgui::Button::create();
-        snakeButton->setText(u8"贪吃蛇");
-        snakeButton->setSize(150, 50);
-        snakeButton->onPress([]{
-            //进入贪吃蛇游戏界面
-        });
-        grid->addWidget(snakeButton, 0, 0);
-        myMenuGroup->add(grid);*/
-        myMenuGroup->add(initGameList());
+        myMenuGroup->add(initButton());
 
         //退出
         auto exitButton = tgui::Button::create();
@@ -46,25 +39,39 @@ public:
         // 核心定位代码：让按钮右下角对齐窗口右下角，留20像素边距
         exitButton->setPosition("100% - width - 20", "100% - height - 20");
         exitButton->onPress([&]{
-        //    PageChange msg{PAGE_STATE_DESTROY, 0}; // 退出游戏
-        //    MessageBus::getInstance().emit(msg);
-            gui.getWindow()->close();
+            PageChange msg{PAGE_STATE_DESTROY, PAGE_ID_MENU}; // 退出游戏
+            MessageBus::getInstance().emit(msg);
         });
         myMenuGroup->add(exitButton);
-
-        gui.add(myMenuGroup);
+        return myMenuGroup;
     }
     void onShow() {
+        if(!m_visible){
+            m_visible = !m_visible;
+            myMenuGroup->setVisible(m_visible);
+        }
     }
     void onHide(){
+        if(m_visible){
+            m_visible = !m_visible;
+            myMenuGroup->setVisible(m_visible);
+        }
     }
-    void DealWindowEvent(const std::optional<sf::Event> &event){
+    bool HandleEvent(sf::Event event){
+        return false;
     }
 
     void onLogicLoop(){
     }
+
+    int getPageId(){
+        return m_pageId;
+    }
+    tgui::Group::Ptr getCurrentGroup(){
+        return myMenuGroup;
+    }
 private:
-    tgui::Grid::Ptr initGameList(){
+    tgui::Grid::Ptr initButton(){
         auto grid = tgui::Grid::create();
         grid->setPosition("50% - width / 2", "30%");
         grid->setAutoSize(true);
@@ -92,6 +99,8 @@ private:
     }
     void doSnakeGame(){
         std::cout<<__func__<<std::endl;
+        PageChange msg{PAGE_STATE_CREATE, PAGE_ID_SNAKE};
+        MessageBus::getInstance().emit(msg);
     }
     void doPacManGame(){
         std::cout<<__func__<<std::endl;
@@ -117,4 +126,6 @@ private:
 private:
     tgui::Group::Ptr myMenuGroup;
     sf::Vector2u m_size;
+    bool m_visible = false;
+    int m_pageId;
 };
