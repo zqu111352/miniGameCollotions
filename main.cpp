@@ -59,19 +59,23 @@ int main(void){
     // 6. 主循环
     while (window.isOpen())
     {
+        if(pageStack.empty())
+            break;
+        auto topPage = getTopPage();
         while (const std::optional event = window.pollEvent())
         {
             gui.handleEvent(*event);
             if (event->is<sf::Event::Closed>())
                 window.close();
+            if(topPage)
+                topPage->HandleEvent(*event);
         }
-        if(pageStack.empty())
-            break;
-        auto topPage = getTopPage();
-        topPage->onLogicLoop();
-        topPage->onShow();
+        if(topPage)
+            topPage->onLogicLoop();
 
         window.clear(sf::Color::Cyan);
+        if(topPage)
+            topPage->onShow();
 
         gui.draw();
 
